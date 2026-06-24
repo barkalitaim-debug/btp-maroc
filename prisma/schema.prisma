@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  CLIENT
+  PRESTATAIRE
+  ADMIN
+}
+
+enum StatutDevis {
+  EN_ATTENTE
+  VU
+  ACCEPTE
+  REFUSE
+  TERMINE
+}
+
+enum StatutPremium {
+  GRATUIT
+  SILVER
+  GOLD
+}
+
+enum TypeConstruction {
+  VILLA
+  APPARTEMENT
+  COMMERCIAL
+  INDUSTRIEL
+  AUTRE
+}
+
+enum StatutAvis {
+  EN_ATTENTE
+  APPROUVE
+  REJETE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  phone        String?  @unique
+  password     String?
+  nom          String
+  prenom       String
+  avatar       String?
+  role         Role     @default(CLIENT)
+  emailVerifie Boolean  @default(false)
+  actif        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  prestataire  Prestataire?
+  devisEnvoyes Devis[]      @relation("ClientDevis")
+  avisLaisses  Avis[]       @relation("ClientAvis")
+  simulations  Simulation[]
+  @@map("users")
+}
+
+model Prestataire {
+  id             String        @id @default(uuid())
+  userId         String        @unique
+  raisonSociale  String
+  description    String?       @db.Text
+  adresse        String?
+  ville          String
+  wilaya         String
+  latitude       Float?
+  longitude      Float?
+  siteWeb        String?
+  anneeCreation  Int?
+  employes       Int?
+  siret          String?
+  premium        StatutPremium @default(GRATUIT)
+  premiumExpire  DateTime?
+  verifie        Boolean       @default(false)
+  actif          Boolean       @default(true)
+  vues           Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories     PrestataireCategorie[]
+  photos         Photo[]
+  avis           Avis[]        @relation("PrestataireAvis")
+  devisRecus     Devis[]       @relation("PrestataireDevis")
+  @@index([ville])
+  @@index([wilaya])
+  @@index([premium])
+  @@map("prestataires")
+}
+
+model Categorie {
+  id           String   @id @default(uuid())
+  nom          String   @unique
+  nomAr        String?
+  slug         String   @unique
+  icone        String?
+  description  String?
+  ordre        Int      @default(0)
+  actif        Boolean  @default(true)
+  prestataires PrestataireCategorie[]
+  materiaux    Materiau[]
+  @@map("categories")
+}
+
+model PrestataireCategorie {
+  prestataireId String
+  categorieId   String
+  principal     Boolean @default(false)
+  prestataire   Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  categorie     Categorie   @relation(fields: [categorieId], references: [id], onDelete: Cascade)
+  @@id([prestataireId, categorieId])
+  @@map("prestataire_categories")
+}
+
+model Photo {
+  id            String      @id @default(uuid())
+  url           String
+  alt           String?
+  principale    Boolean     @default(false)
+  ordre         Int         @default(0)
+  prestataireId String
+  createdAt     DateTime    @default(now())
+  prestataire   Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  @@map("photos")
+}
+
+model Avis {
+  id            String     @id @default(uuid())
+  note          Int
+  commentaire   String     @db.Text
+  reponse       String?    @db.Text
+  statut        StatutAvis @default(EN_ATTENTE)
+  clientId      String
+  prestataireId String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  client        User        @relation("ClientAvis", fields: [clientId], references: [id])
+  prestataire   Prestataire @relation("PrestataireAvis", fields: [prestataireId], references: [id])
+  @@unique([clientId, prestataireId])
+  @@index([prestataireId])
+  @@map("avis")
+}
+
+model Devis {
+  id            String      @id @default(uuid())
+  message       String      @db.Text
+  budget        Float?
+  delai         String?
+  statut        StatutDevis @default(EN_ATTENTE)
+  reponse       String?     @db.Text
+  clientId      String
+  prestataireId String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  client        User        @relation("ClientDevis", fields: [clientId], references: [id])
+  prestataire   Prestataire @relation("PrestataireDevis", fields: [prestataireId], references: [id])
+  @@index([prestataireId])
+  @@index([clientId])
+  @@map("devis")
+}
+
+model Materiau {
+  id           String     @id @default(uuid())
+  nom          String
+  nomAr        String?
+  description  String?
+  unite        String
+  prixMin      Float
+  prixMax      Float
+  fournisseur  String?
+  ville        String?
+  categorieId  String?
+  disponible   Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  categorie    Categorie? @relation(fields: [categorieId], references: [id])
+  @@index([categorieId])
+  @@map("materiaux")
+}
+
+model Simulation {
+  id               String           @id @default(uuid())
+  surface          Float
+  typeConstruction TypeConstruction
+  region           String
+  niveaux          Int              @default(1)
+  finition         String           @default("standard")
+  coutEstimeMin    Float
+  coutEstimeMax    Float
+  detail           Json?
+  userId           String?
+  createdAt        DateTime         @default(now())
+  user             User?            @relation(fields: [userId], references: [id])
+  @@map("simulations")
+}
+
+model TarifRegion {
+  id           String           @id @default(uuid())
+  region       String
+  typeConst    TypeConstruction
+  finition     String
+  prixMinM2    Float
+  prixMaxM2    Float
+  updatedAt    DateTime         @updatedAt
+  @@unique([region, typeConst, finition])
+  @@map("tarifs_region")
+}
+
+model Ville {
+  id       String  @id @default(uuid())
+  nom      String
+  nomAr    String?
+  wilaya   String
+  slug     String  @unique
+  @@map("villes")
+}
