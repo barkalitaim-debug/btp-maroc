@@ -45,3 +45,5 @@ next-env.d.ts
 
 # prisma migrations (géré en dehors du repo)
 prisma/migrations
+
+.vercel
